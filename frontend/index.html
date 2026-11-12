@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PDF Chunker</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M6 2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2zm8 1.5V8h4.5L14 3.5zM7 11h10v1.6H7V11zm0 3.5h10v1.6H7v-1.6zm0 3.5h6v1.6H7V18z"/></svg>
+      <span>PDF Chunker</span>
+    </div>
+    <span id="health" class="pill">checking…</span>
+  </header>
+
+  <div class="layout">
+    <aside class="sidebar">
+      <form id="upload-form" class="card">
+        <label id="drop" class="drop" for="file">
+          <input id="file" type="file" accept="application/pdf" hidden />
+          <strong>Drop a PDF here</strong>
+          <span id="file-name" class="muted">or click to choose</span>
+        </label>
+
+        <div class="grid2">
+          <label>Strategy
+            <select id="strategy">
+              <option value="structural">Structural</option>
+              <option value="semantic">Semantic (embeddings)</option>
+              <option value="fixed">Fixed window</option>
+            </select>
+          </label>
+          <label>Summary length
+            <select id="length">
+              <option value="brief">Brief</option>
+              <option value="standard" selected>Standard</option>
+              <option value="detailed">Detailed</option>
+            </select>
+          </label>
+          <label>Max tokens <input id="max_tokens" type="number" value="800" min="100" max="8000" step="50" /></label>
+          <label>Overlap <input id="overlap_tokens" type="number" value="80" min="0" max="2000" step="10" /></label>
+        </div>
+        <label>Focus (optional)
+          <input id="focus" type="text" placeholder="e.g. risks and financial figures" />
+        </label>
+        <label>Output language (optional)
+          <input id="language" type="text" placeholder="same as document" />
+        </label>
+        <div class="checks">
+          <label class="check"><input id="summarize" type="checkbox" checked /> Summarize with Gemini</label>
+          <label class="check"><input id="tables" type="checkbox" checked /> Detect tables</label>
+        </div>
+        <button id="submit" type="submit" class="primary" disabled>Process PDF</button>
+        <p id="form-error" class="error" hidden></p>
+      </form>
+
+      <section class="card">
+        <h2 class="section-title">Documents</h2>
+        <ul id="doc-list" class="doc-list"><li class="muted">No documents yet</li></ul>
+      </section>
+    </aside>
+
+    <main class="main">
+      <div id="empty" class="empty">
+        <h1>Intelligent PDF chunking &amp; summarization</h1>
+        <p class="muted">Upload a PDF to split it along its real structure (headings, sections, tables)
+          into retrieval-ready chunks, with chunk, section and document summaries from Gemini.</p>
+      </div>
+
+      <div id="progress" class="card" hidden>
+        <div class="progress-head"><strong id="progress-file"></strong><span id="progress-pct">0%</span></div>
+        <div class="bar"><div id="progress-bar"></div></div>
+        <p id="progress-msg" class="muted"></p>
+      </div>
+
+      <div id="doc" hidden>
+        <div class="doc-head">
+          <div>
+            <h1 id="doc-title"></h1>
+            <p id="doc-meta" class="muted"></p>
+          </div>
+          <div class="actions">
+            <a id="exp-md" class="btn">Markdown</a>
+            <a id="exp-jsonl" class="btn">JSONL</a>
+            <a id="exp-json" class="btn">JSON</a>
+            <a id="open-pdf" class="btn" target="_blank" rel="noopener">PDF</a>
+          </div>
+        </div>
+        <div id="stats" class="stats"></div>
+        <div id="warnings"></div>
+
+        <nav class="tabs" role="tablist">
+          <button class="tab active" data-tab="summary" role="tab">Summary</button>
+          <button class="tab" data-tab="outline" role="tab">Outline</button>
+          <button class="tab" data-tab="chunks" role="tab">Chunks</button>
+        </nav>
+
+        <section id="tab-summary" class="tabpanel"></section>
+        <section id="tab-outline" class="tabpanel" hidden></section>
+        <section id="tab-chunks" class="tabpanel" hidden>
+          <input id="chunk-search" type="search" placeholder="Search chunks, summaries, keywords…" />
+          <div id="chunk-list"></div>
+        </section>
+      </div>
+    </main>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>

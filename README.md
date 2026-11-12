@@ -15,9 +15,29 @@ PDF ──► 1. Extract ──► 2. Structure ──► 3. Chunk ──► 4. 
 | **Structure** | Uses the PDF's embedded outline (TOC) when it has one. Otherwise it finds headings from font-size tiers, bold text and section numbering (`2.3.1 …`). Detects the document title. Builds a section tree. |
 | **Chunking** | `structural` (default): chunks never cross a section boundary, split at sentence boundaries, stay within the token budget, overlap their neighbours and merge small leftovers. `semantic`: splits long sections where the topic shifts, using Gemini embeddings. `fixed`: a sliding-window baseline. Every chunk records its heading path, page range and token count. |
 | **Summarization** (Gemini) | Map-reduce over the section tree: chunk summaries with key points and keywords, then section summaries built bottom-up from child summaries, then an executive summary, document type, topics and audience. Uses structured JSON output, limits concurrent requests and retries 429/5xx errors with exponential backoff. Supports summary length (brief/standard/detailed), output language and a *focus* instruction. |
-| **Interfaces** | REST API with background jobs and progress, a web UI, a CLI, and Markdown/JSON/JSONL export. The JSONL export is RAG-ready and includes `contextual_text` with the heading breadcrumbs. |
+| **Interfaces** | REST API with background jobs and progress, multi-PDF upload, chunk inspect/edit, Ask (RAG Q&A), a web UI, a CLI, and Markdown / PDF / JSON / JSONL export. The JSONL export is RAG-ready and includes `contextual_text` with the heading breadcrumbs. |
 
-## Setup
+## Quick start (Docker)
+
+```bash
+cp .env.example .env     # set GEMINI_API_KEY (make up also creates .env if it's missing)
+make up                  # build the image and start → http://localhost:8000
+make down                # stop and remove the containers (processed data is kept)
+```
+
+| Command | What it does |
+|---|---|
+| `make up` | Build the image and start the app in the background |
+| `make down` | Stop and remove the containers. Processed data stays in the `pdfchunk-data` volume |
+| `make build` / `make rebuild` | Build the images, or rebuild without the cache and restart |
+| `make restart` | Recreate the app container, for example after editing `.env` |
+| `make logs` / `make ps` / `make shell` | Follow the logs, show status, or open a shell in the container |
+| `make test` | Run the test suite inside Docker |
+| `make clean` | Remove containers, images **and the data volume** |
+
+To use a different port, run `make up PORT=9000`. `.env` is passed to the container at runtime and is never copied into the image.
+
+## Local setup (without Docker)
 
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
@@ -34,7 +54,7 @@ uvicorn pdfchunk.api:app --reload
 # open http://127.0.0.1:8000
 ```
 
-Upload a PDF, pick a strategy and summary options, and watch the progress. Then browse the **Summary**, the **Outline** (section tree with summaries) and the **Chunks** (searchable). From there you can export Markdown, JSON or JSONL.
+Upload one or more PDFs, pick a strategy and summary options, and watch the progress. Then browse the **Summary**, the **Outline** (section tree with summaries), the **Chunks** (searchable and editable) and **Ask** (RAG Q&A with page citations). Export Markdown, Summary PDF, JSON or JSONL.
 
 ## CLI
 
@@ -50,10 +70,13 @@ python -m pdfchunk report.pdf -s semantic --max-tokens 600 --length detailed --f
 | Method | Path | Description |
 |---|---|---|
 | `GET` | `/api/health` | Server status, and whether Gemini is configured |
-| `POST` | `/api/documents` | multipart: `file` (PDF) and optional `options` (JSON, see below). Returns a job with status `202` |
+| `POST` | `/api/documents` | multipart: `file` (PDF) and optional `options` (JSON). Returns a job (`202`) |
+| `POST` | `/api/documents/batch` | multipart: one or more `files` + optional `options`. Returns a list of jobs (`202`) |
 | `GET` | `/api/jobs` / `/api/jobs/{id}` | Job status: `stage`, `progress` (0–1), `message` and `error` |
 | `GET` | `/api/documents/{id}` | Full processed result: metadata, sections, chunks, summary and stats |
-| `GET` | `/api/documents/{id}/export?format=markdown\|json\|jsonl` | Download the result |
+| `PATCH` | `/api/documents/{id}/chunks/{chunk_id}` | Edit a chunk's `text`, `summary`, `key_points` or `keywords` |
+| `POST` | `/api/documents/{id}/ask` | RAG Q&A: `{ "question": "…", "top_k": 6 }` → answer + page citations |
+| `GET` | `/api/documents/{id}/export?format=markdown\|pdf\|json\|jsonl` | Download the result |
 | `GET` | `/api/documents/{id}/pdf` | The original PDF |
 | `DELETE` | `/api/documents/{id}` | Delete the upload and its results |
 
@@ -92,10 +115,11 @@ pdfchunk/
   chunking.py     section tree + structural / semantic / fixed strategies
   gemini.py       async Gemini client: retries, concurrency, structured output, embeddings
   summarizer.py   hierarchical map-reduce summarization
+  rag.py          embedding (or lexical) retrieval + grounded Q&A
   pipeline.py     orchestration + progress reporting
   api.py          FastAPI app (serves frontend/)
   cli.py          command-line interface
-  exporters.py    Markdown / JSONL export
+  exporters.py    Markdown / PDF / JSONL export
   store.py        file-backed job & result storage
   models.py       Pydantic models
 frontend/         dependency-free web UI (HTML/CSS/JS)

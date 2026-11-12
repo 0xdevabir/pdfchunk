@@ -3,29 +3,42 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>PDF Chunker</title>
+  <meta name="color-scheme" content="light dark" />
+  <title>pdfchunk · Intelligent PDF Chunking &amp; Summarization</title>
   <link rel="stylesheet" href="styles.css" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='6' fill='%234f46e5'/%3E%3Cpath d='M7 6h7l3 3v9H7z' fill='none' stroke='white' stroke-width='1.6' stroke-linejoin='round'/%3E%3Cpath d='M9.5 12h5M9.5 14.5h5' stroke='white' stroke-width='1.4' stroke-linecap='round'/%3E%3C/svg%3E" />
 </head>
 <body>
   <header class="topbar">
     <div class="brand">
-      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M6 2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2zm8 1.5V8h4.5L14 3.5zM7 11h10v1.6H7V11zm0 3.5h10v1.6H7v-1.6zm0 3.5h6v1.6H7V18z"/></svg>
-      <span>PDF Chunker</span>
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="18" height="18"><path d="M7 4h7l4 4v11a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1zm7 0v4h4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M9.2 12h5.6M9.2 15h5.6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      </span>
+      <div class="brand-text">
+        <strong>pdfchunk</strong>
+        <small>structure-aware PDF → RAG chunks</small>
+      </div>
     </div>
-    <span id="health" class="pill">checking…</span>
+    <div class="topbar-right">
+      <span id="health" class="pill"><span class="dot"></span><span class="pill-text">checking…</span></span>
+      <button id="theme-toggle" class="icon-btn" type="button" title="Toggle theme" aria-label="Toggle color theme"></button>
+    </div>
   </header>
 
   <div class="layout">
     <aside class="sidebar">
-      <form id="upload-form" class="card">
+      <form id="upload-form" class="card" autocomplete="off">
         <label id="drop" class="drop" for="file">
-          <input id="file" type="file" accept="application/pdf" hidden />
-          <strong>Drop a PDF here</strong>
-          <span id="file-name" class="muted">or click to choose</span>
+          <input id="file" type="file" accept="application/pdf" multiple hidden />
+          <span class="drop-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="22" height="22"><path d="M12 16V5m0 0L8 9m4-4 4 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          </span>
+          <strong>Drop PDFs here</strong>
+          <span id="file-name" class="drop-hint">one or many — processed locally on this server</span>
         </label>
 
         <div class="grid2">
-          <label>Strategy
+          <label>Chunking strategy
             <select id="strategy">
               <option value="structural">Structural</option>
               <option value="semantic">Semantic (embeddings)</option>
@@ -42,17 +55,25 @@
           <label>Max tokens <input id="max_tokens" type="number" value="800" min="100" max="8000" step="50" /></label>
           <label>Overlap <input id="overlap_tokens" type="number" value="80" min="0" max="2000" step="10" /></label>
         </div>
-        <label>Focus (optional)
-          <input id="focus" type="text" placeholder="e.g. risks and financial figures" />
-        </label>
-        <label>Output language (optional)
-          <input id="language" type="text" placeholder="same as document" />
-        </label>
+
+        <details class="adv">
+          <summary>Summary options</summary>
+          <label>Focus (optional)
+            <input id="focus" type="text" placeholder="e.g. risks and financial figures" />
+          </label>
+          <label>Output language (optional)
+            <input id="language" type="text" placeholder="same as document" />
+          </label>
+        </details>
+
         <div class="checks">
-          <label class="check"><input id="summarize" type="checkbox" checked /> Summarize with Gemini</label>
-          <label class="check"><input id="tables" type="checkbox" checked /> Detect tables</label>
+          <label class="check"><input id="summarize" type="checkbox" checked /><span class="switch"></span> Summarize with Gemini</label>
+          <label class="check"><input id="tables" type="checkbox" checked /><span class="switch"></span> Detect tables</label>
         </div>
-        <button id="submit" type="submit" class="primary" disabled>Process PDF</button>
+        <button id="submit" type="submit" class="primary" disabled>
+          <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M5 12h13m0 0-5-5m5 5-5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Process PDF
+        </button>
         <p id="form-error" class="error" hidden></p>
       </form>
 
@@ -63,29 +84,73 @@
     </aside>
 
     <main class="main">
+      <!-- ================= empty state ================= -->
       <div id="empty" class="empty">
-        <h1>Intelligent PDF chunking &amp; summarization</h1>
-        <p class="muted">Upload a PDF to split it along its real structure (headings, sections, tables)
-          into retrieval-ready chunks, with chunk, section and document summaries from Gemini.</p>
+        <div class="hero">
+          <span class="hero-badge">PDF → chunks → summaries</span>
+          <h1>Split PDFs along their <em>real</em> structure.<br/>Make them retrieval-ready.</h1>
+          <p class="muted">pdfchunk follows headings, sections, lists and tables instead of cutting blindly at a
+            character limit — then Gemini writes summaries at three levels: chunk, section and document.</p>
+          <div class="pipeline" aria-hidden="true">
+            <span class="pipe-step"><b>1</b>Extract</span>
+            <span class="pipe-arrow"></span>
+            <span class="pipe-step"><b>2</b>Structure</span>
+            <span class="pipe-arrow"></span>
+            <span class="pipe-step"><b>3</b>Chunk</span>
+            <span class="pipe-arrow"></span>
+            <span class="pipe-step accent"><b>4</b>Summarize</span>
+          </div>
+        </div>
+        <div class="features">
+          <div class="feature">
+            <span class="feat-icon"><svg viewBox="0 0 24 24" width="18" height="18"><path d="M4 5h16v14H4z" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M4 9h16M9 9v10" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></span>
+            <h3>Structure-aware</h3>
+            <p>Headings from font tiers, bold text and numbering, embedded outlines, table detection and Markdown rendering, header/footer removal.</p>
+          </div>
+          <div class="feature">
+            <span class="feat-icon"><svg viewBox="0 0 24 24" width="18" height="18"><rect x="4" y="4" width="7" height="7" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"/><rect x="13" y="4" width="7" height="7" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"/><rect x="4" y="13" width="7" height="7" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"/><rect x="13" y="13" width="7" height="7" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></span>
+            <h3>RAG-ready chunks</h3>
+            <p>Sentence-boundary packing with overlap and breadcrumb headings. Export JSONL with <code>contextual_text</code> and drop it straight into your vector store.</p>
+          </div>
+          <div class="feature">
+            <span class="feat-icon"><svg viewBox="0 0 24 24" width="18" height="18"><path d="M12 3l1.9 4.6L18.5 9l-4.6 1.9L12 15.5l-1.9-4.6L5.5 9l4.6-1.4z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M18 15l.9 2.1L21 18l-2.1.9L18 21l-.9-2.1L15 18l2.1-.9z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg></span>
+            <h3>Hierarchical summaries</h3>
+            <p>Map-reduce over the section tree: per-chunk key points and keywords, bottom-up section summaries, then an executive summary.</p>
+          </div>
+        </div>
       </div>
 
-      <div id="progress" class="card" hidden>
-        <div class="progress-head"><strong id="progress-file"></strong><span id="progress-pct">0%</span></div>
-        <div class="bar"><div id="progress-bar"></div></div>
+      <!-- ================= progress ================= -->
+      <div id="progress" class="card progress-card" hidden>
+        <div class="progress-head">
+          <strong id="progress-file"></strong>
+          <span id="progress-pct" class="pct">0%</span>
+        </div>
+        <div class="bar"><div id="progress-bar" class="bar-fill"></div></div>
+        <ol id="stepper" class="stepper">
+          <li data-stage="extracting"><span class="step-dot"></span>Extract</li>
+          <li data-stage="chunking"><span class="step-dot"></span>Chunk</li>
+          <li data-stage="summarizing"><span class="step-dot"></span>Summarize</li>
+          <li data-stage="completed"><span class="step-dot"></span>Done</li>
+        </ol>
         <p id="progress-msg" class="muted"></p>
       </div>
 
+      <!-- ================= document ================= -->
       <div id="doc" hidden>
         <div class="doc-head">
-          <div>
+          <div class="doc-title-wrap">
             <h1 id="doc-title"></h1>
             <p id="doc-meta" class="muted"></p>
           </div>
           <div class="actions">
-            <a id="exp-md" class="btn">Markdown</a>
-            <a id="exp-jsonl" class="btn">JSONL</a>
-            <a id="exp-json" class="btn">JSON</a>
-            <a id="open-pdf" class="btn" target="_blank" rel="noopener">PDF</a>
+            <a id="exp-md" class="btn" title="Download summary as Markdown">
+              <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M12 4v11m0 0-4-4m4 4 4-4M5 19h14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              Markdown</a>
+            <a id="exp-summary-pdf" class="btn" title="Download summary as PDF">Summary PDF</a>
+            <a id="exp-jsonl" class="btn" title="Download RAG-ready JSONL chunks">JSONL</a>
+            <a id="exp-json" class="btn" title="Download full result as JSON">JSON</a>
+            <a id="open-pdf" class="btn" target="_blank" rel="noopener" title="Open the original PDF">Source PDF</a>
           </div>
         </div>
         <div id="stats" class="stats"></div>
@@ -94,18 +159,37 @@
         <nav class="tabs" role="tablist">
           <button class="tab active" data-tab="summary" role="tab">Summary</button>
           <button class="tab" data-tab="outline" role="tab">Outline</button>
-          <button class="tab" data-tab="chunks" role="tab">Chunks</button>
+          <button class="tab" data-tab="chunks" role="tab">Chunks <span id="chunk-count-badge" class="count"></span></button>
+          <button class="tab" data-tab="ask" role="tab">Ask</button>
         </nav>
 
         <section id="tab-summary" class="tabpanel"></section>
         <section id="tab-outline" class="tabpanel" hidden></section>
         <section id="tab-chunks" class="tabpanel" hidden>
-          <input id="chunk-search" type="search" placeholder="Search chunks, summaries, keywords…" />
+          <div class="search-row">
+            <div class="search-wrap">
+              <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="m16.5 16.5 4 4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+              <input id="chunk-search" type="search" placeholder="Search chunks, summaries, keywords…  ( / to focus )" />
+            </div>
+            <span id="chunk-match-info" class="muted"></span>
+          </div>
           <div id="chunk-list"></div>
+        </section>
+        <section id="tab-ask" class="tabpanel" hidden>
+          <form id="ask-form" class="ask-form" autocomplete="off">
+            <label class="ask-label">Ask a question about this document
+              <textarea id="ask-input" rows="2" placeholder="e.g. What are the main conclusions? Which pages discuss energy storage?"></textarea>
+            </label>
+            <button id="ask-submit" type="submit" class="primary">Ask</button>
+          </form>
+          <p id="ask-error" class="error" hidden></p>
+          <div id="ask-result" class="ask-result" hidden></div>
         </section>
       </div>
     </main>
   </div>
+
+  <div id="toasts" class="toasts" aria-live="polite"></div>
   <script src="app.js"></script>
 </body>
 </html>

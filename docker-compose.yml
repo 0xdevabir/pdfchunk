@@ -1,0 +1,31 @@
+name: pdfchunk
+
+services:
+  app:
+    build:
+      context: .
+      target: runtime
+    image: pdfchunk:latest
+    container_name: pdfchunk
+    ports:
+      - "${PORT:-8000}:8000"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      PDFCHUNK_DATA_DIR: /app/data
+    volumes:
+      - pdfchunk-data:/app/data
+    restart: unless-stopped
+
+  test:
+    build:
+      context: .
+      target: test
+    image: pdfchunk:test
+    profiles: ["test"]
+    environment:
+      GEMINI_API_KEY: ""   # tests never call the real API
+
+volumes:
+  pdfchunk-data:

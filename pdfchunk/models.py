@@ -169,3 +169,23 @@ class Job(BaseModel):
     error: str | None = None
     created_at: str
     updated_at: str
+
+
+class ChunkUpdate(BaseModel):
+    """Partial update for inspect/edit workflow (option B)."""
+
+    text: str | None = None
+    summary: str | None = None
+    key_points: list[str] | None = None
+    keywords: list[str] | None = None
+
+
+class AskRequest(BaseModel):
+    question: str = Field(min_length=1, max_length=4000)
+    top_k: int = Field(default=6, ge=1, le=20)
+
+
+class AskResponse(BaseModel):
+    answer: str
+    citations: list[dict] = Field(default_factory=list)
+    retrieved_chunk_ids: list[str] = Field(default_factory=list)

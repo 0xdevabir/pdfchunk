@@ -7,12 +7,13 @@ import time
 import pytest
 
 from pdfchunk.chunking import chunk_document
-from pdfchunk.exporters import to_jsonl, to_markdown
+from pdfchunk.exporters import to_jsonl, to_markdown, to_pdf
 from pdfchunk.extraction import extract_pdf
 from pdfchunk.models import (
     ChunkingOptions, ElementType, ProcessingOptions, SummarizationOptions,
 )
 from pdfchunk.pipeline import process_pdf
+from pdfchunk.rag import retrieve
 from pdfchunk.summarizer import ChunkSummaryOut, DocumentSummaryOut, SectionSummaryOut
 from pdfchunk.textutils import estimate_tokens, split_sentences
 
@@ -179,6 +180,11 @@ def test_hierarchical_summarization(pdf_bytes):
     md = to_markdown(doc)
     assert "## Executive summary" in md and "2.1 Utility-Scale Solar" in md
     assert len(to_jsonl(doc).strip().splitlines()) == len(doc.chunks)
+    pdf_out = to_pdf(doc)
+    assert pdf_out.startswith(b"%PDF") and len(pdf_out) > 500
+
+    hits = asyncio.run(retrieve(doc, "battery storage lithium", top_k=3))
+    assert hits and any("stor" in h[0].text.lower() or "batter" in h[0].text.lower() for h in hits)
 
 
 def test_requires_key_when_summarizing(pdf_bytes, monkeypatch):
@@ -219,5 +225,24 @@ def test_api_chunk_only_flow(pdf_bytes, tmp_path, monkeypatch):
         assert doc["stats"]["chunk_count"] == len(doc["chunks"]) > 0
         assert client.get(f"/api/documents/{job_id}/export?format=jsonl").status_code == 200
         assert client.get(f"/api/documents/{job_id}/export?format=markdown").text.startswith("# ")
+        pdf_export = client.get(f"/api/documents/{job_id}/export?format=pdf")
+        assert pdf_export.status_code == 200 and pdf_export.content.startswith(b"%PDF")
+
+        chunk_id = doc["chunks"][0]["id"]
+        patched = client.patch(
+            f"/api/documents/{job_id}/chunks/{chunk_id}",
+            json={"summary": "edited summary", "text": doc["chunks"][0]["text"] + "\n\nEdited."},
+        )
+        assert patched.status_code == 200
+        assert patched.json()["chunks"][0]["summary"] == "edited summary"
+
+        batch = client.post(
+            "/api/documents/batch",
+            files=[("files", ("a.pdf", pdf_bytes, "application/pdf")),
+                   ("files", ("b.pdf", pdf_bytes, "application/pdf"))],
+            data={"options": '{"summarization": {"enabled": false}, "chunking": {"max_tokens": 300}}'},
+        )
+        assert batch.status_code == 202 and len(batch.json()) == 2
+
         assert client.delete(f"/api/documents/{job_id}").status_code == 204
         assert client.get(f"/api/documents/{job_id}").status_code == 404
